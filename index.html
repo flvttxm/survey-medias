@@ -4,292 +4,372 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-<title>For Dila ♡</title>
+<title>Geçmiş olsun, Dila ♡</title>
 
 <style>
-* {
-    box-sizing: border-box;
-}
+* { box-sizing: border-box; }
 
 body {
     margin: 0;
     min-height: 100vh;
     background: #08070c;
     display: flex;
-    flex-direction: column;
-    justify-content: center;
     align-items: center;
+    justify-content: center;
     overflow: hidden;
-    color: white;
-    font-family: Consolas, monospace;
+    font-family: Consolas, "Courier New", monospace;
 }
 
 .container {
-    width: 100%;
-    max-width: 950px;
+    width: min(100%, 1050px);
+    padding: 12px;
     text-align: center;
-    padding: 15px;
 }
 
 canvas {
     width: 100%;
-    height: auto;
     display: block;
 }
 
 .message {
-    margin-top: 15px;
     color: #ff69b4;
-    font-size: clamp(18px, 4vw, 25px);
+    font-size: clamp(19px, 4vw, 28px);
     letter-spacing: 1px;
+    margin-top: 8px;
+    text-shadow: 0 0 15px #ff69b455;
 }
-
-.subtitle {
-    margin-top: 12px;
-    color: #be64ff;
-    font-size: 14px;
-    letter-spacing: 2px;
-}
-
 </style>
 </head>
 
 <body>
-
 <div class="container">
-
-    <canvas id="bouquet" width="780" height="640"></canvas>
-
-    <div class="message">
-        Geçmiş olsun, Dila
-    </div>
-
-    <div class="subtitle">
-        (im not an artist, but hopefully you see its flowers)
-    </div>
-
+    <canvas id="art" width="1200" height="680"></canvas>
+    <div class="message">Geçmiş olsun, Dila</div>
 </div>
 
 <script>
-
-const WIDTH = 78;
-const HEIGHT = 32;
-
-const COLORS = {
-    pink: "#ff69b4",
-    purple: "#be64ff",
-    cyan: "#50dcdc",
-    coral: "#ff786e",
-    gold: "#ffcd5a",
-    green: "#64dc7d",
-    light: "#ffe1d2",
-    white: "#ffffff"
-};
-
-const FLOWERS = [
-    [-12, 7, "purple"],
-    [-8, 4, "pink"],
-    [-4, 8, "cyan"],
-    [0, 3, "coral"],
-    [4, 8, "gold"],
-    [8, 4, "purple"],
-    [12, 7, "pink"]
-];
-
-const canvas = document.getElementById("bouquet");
+const canvas = document.getElementById("art");
 const ctx = canvas.getContext("2d");
 
-const CELL_W = canvas.width / WIDTH;
-const CELL_H = canvas.height / HEIGHT;
+const W = 100;
+const H = 54;
 
-function bouquet(angle) {
+const CW = canvas.width / W;
+const CH = canvas.height / H;
 
-    const canvasData = Array.from(
-        { length: HEIGHT },
-        () => Array(WIDTH).fill(null)
-    );
+const FLOWERS = [
+    {x:-27, y:-10, color:"yellow"},
+    {x:-18, y:-17, color:"pink"},
+    {x:-9,  y:-11, color:"red"},
+    {x:0,   y:-20, color:"coral"},
+    {x:10,  y:-11, color:"purple"},
+    {x:20,  y:-17, color:"pink"},
+    {x:28,  y:-9,  color:"yellow"}
+];
 
-    const depthMap = Array.from(
-        { length: HEIGHT },
-        () => Array(WIDTH).fill(-999)
-    );
+const PALETTES = {
+    red:    ["#690c20","#a5152b","#e52b42","#ff5260","#ff9290"],
+    pink:   ["#74134d","#b32b70","#ec559c","#ff83bc","#ffc0da"],
+    yellow: ["#80500b","#c18a13","#f4bd28","#ffe45c","#fff0a1"],
+    coral:  ["#8d2536","#d54448","#ff695f","#ff9380","#ffc0a7"],
+    purple: ["#40115f","#7723a5","#b24ad9","#d985f5","#edb7ff"]
+};
 
-    function put(x, y, z, char, color) {
+const CHARS = "@%#*+=-:.";
+const GREEN = [
+    "#174c24",
+    "#207a32",
+    "#32a342",
+    "#57cf62",
+    "#91ec83"
+];
 
-        const rad = angle * Math.PI / 180;
+let angle = 0;
 
-        const rx = x * Math.cos(rad) + z * Math.sin(rad);
-        const rz = -x * Math.sin(rad) + z * Math.cos(rad);
+function rotate(x, y, z, rotation) {
+    const r = rotation * Math.PI / 180;
 
-        const scale = 1 + rz * 0.012;
+    const rx = x * Math.cos(r) + z * Math.sin(r);
+    const rz = -x * Math.sin(r) + z * Math.cos(r);
 
-        const sx = Math.floor(
-            WIDTH / 2 + rx * 1.25 * scale
-        );
+    const perspective = 1 + rz * 0.009;
 
-        const sy = Math.floor(y);
+    return {
+        x: Math.round(W/2 + rx * perspective),
+        y: Math.round(H/2 + y * 0.85),
+        z: rz
+    };
+}
 
-        if (
-            sx >= 0 && sx < WIDTH &&
-            sy >= 0 && sy < HEIGHT
-        ) {
-            if (rz >= depthMap[sy][sx]) {
+function createGrid() {
+    return {
+        chars: Array.from({length:H}, () => Array(W).fill(null)),
+        depth: Array.from({length:H}, () => Array(W).fill(-999))
+    };
+}
 
-                canvasData[sy][sx] = {
-                    char: char,
-                    color: color
-                };
+function put(grid, x, y, z, char, color) {
+    const p = rotate(x, y, z, angle);
 
-                depthMap[sy][sx] = rz;
-            }
+    if (p.x < 0 || p.x >= W || p.y < 0 || p.y >= H)
+        return;
+
+    if (p.z >= grid.depth[p.y][p.x]) {
+        grid.depth[p.y][p.x] = p.z;
+        grid.chars[p.y][p.x] = {char, color};
+    }
+}
+
+// Seven detailed ASCII roses
+function drawRose(grid, flower) {
+    const {x:cx, y:cy, color} = flower;
+    const palette = PALETTES[color];
+
+    for (let dy=-6; dy<=6; dy++) {
+        for (let dx=-9; dx<=9; dx++) {
+
+            const nx = dx / 9;
+            const ny = dy / 6;
+
+            const r = Math.sqrt(nx*nx + ny*ny);
+            const a = Math.atan2(ny, nx);
+
+            const petals =
+                1 +
+                0.16 * Math.sin(7*a + r*4) +
+                0.08 * Math.cos(11*a - r*3) +
+                0.04 * Math.sin(17*a);
+
+            if (r > petals || r > 1.12)
+                continue;
+
+            const folds =
+                Math.sin(a*5 + r*13) +
+                Math.cos(a*8 - r*9);
+
+            const ring = Math.floor(
+                Math.min(4, Math.max(0, r*4 + folds*0.28))
+            );
+
+            const charIndex = Math.min(
+                8,
+                Math.floor(
+                    (Math.abs(folds) + r*2) * 2
+                )
+            );
+
+            const char = CHARS[charIndex];
+
+            const z = 2 + (1-r)*3 + Math.sin(a*7)*0.4;
+
+            put(
+                grid,
+                cx+dx,
+                cy+dy,
+                z,
+                char,
+                palette[ring]
+            );
         }
     }
 
-    // Decorative stars
-    [
-        [-24, 5], [23, 8], [-20, 15],
-        [21, 17], [-16, 24], [17, 25]
-    ].forEach(([x, y]) => {
-        put(x, y, -2, "·", COLORS.white);
+    // Inner spiral of each rose
+    for (let i=0; i<26; i++) {
+        const t = i / 26;
+        const a = t * Math.PI * 5;
+
+        const radius = 2.5 * (1-t);
+
+        const px = cx + Math.cos(a)*radius;
+        const py = cy + Math.sin(a)*radius*0.65;
+
+        put(
+            grid, px, py, 6,
+            i%3===0 ? "@" : "%",
+            palette[3]
+        );
+    }
+
+    // Small highlighted center
+    put(grid, cx, cy, 7, "*", palette[4]);
+}
+
+// Decorative foliage
+function drawLeaf(grid, x, y, direction, size) {
+    for (let i=0; i<size; i++) {
+        const px = x + direction*i;
+        const py = y - Math.sin(i/size*Math.PI)*2.5;
+
+        put(grid, px, py, 0, "###", GREEN[2]);
+
+        put(
+            grid,
+            px,
+            py+1,
+            0,
+            i%2===0 ? "x" : "%",
+            GREEN[3]
+        );
+    }
+}
+
+function drawBouquet(grid) {
+
+    // Stars
+    const stars = [
+        [-39,-15], [38,-18], [-40,4],
+        [40,8], [-30,22], [32,20],
+        [-12,28], [18,27]
+    ];
+
+    stars.forEach(([x,y], i) => {
+        put(
+            grid, x, y, -2,
+            i%2===0 ? "*" : ".",
+            "#ffffff"
+        );
     });
 
-    // Stems and leaves
-    FLOWERS.forEach(([fx, fy]) => {
+    // Seven roses
+    FLOWERS.forEach(flower => {
+        drawRose(grid, flower);
+    });
 
-        for (let y = fy + 2; y < 21; y++) {
+    // Stems
+    FLOWERS.forEach((flower, index) => {
+        const {x,y} = flower;
 
-            const t = (y - fy) / (21 - fy);
-            const sx = fx * (1 - t);
+        for (let py=y+6; py<25; py++) {
+            const t = (py-y)/31;
+            const sx = x*(1-t);
 
-            put(sx, y, 0, "│", COLORS.green);
+            put(
+                grid,
+                sx,
+                py,
+                0,
+                index%2===0 ? "│" : "|",
+                GREEN[3]
+            );
 
-            if ([fy + 5, fy + 8, fy + 11].includes(y)) {
-
-                const side = fx < 0 ? 1 : -1;
-
-                put(
-                    sx + side * 2,
-                    y,
-                    0,
-                    "❧",
-                    COLORS.green
+            if (py%4===0) {
+                drawLeaf(
+                    grid,
+                    sx,
+                    py,
+                    index%2===0 ? -1 : 1,
+                    5
                 );
             }
         }
     });
 
-    // Seven flower heads
-    FLOWERS.forEach(([fx, fy, color]) => {
+    // Large leaves behind the bouquet
+    for (let i=0; i<14; i++) {
+        const side = i%2===0 ? -1 : 1;
+        const x = side*(13+i*1.4);
 
-        for (let i = 0; i < 8; i++) {
+        for (let j=0; j<9; j++) {
+            const px = x + side*j*0.6;
+            const py = 0 + j*0.55;
 
-            const a = i * Math.PI / 4;
-
-            const px = fx + Math.cos(a) * 1.7;
-            const py = fy + Math.sin(a) * 1.7;
-
-            put(px, py, 0, "✿", COLORS[color]);
+            put(
+                grid, px, py, -1,
+                j%3===0 ? "x" : "%",
+                GREEN[j%5]
+            );
         }
+    }
 
-        put(fx, fy, 0.5, "✦", COLORS.gold);
-    });
+    // Wrapping paper
+    for (let y=5; y<=25; y++) {
 
-    // Bouquet wrapping
-    for (let y = 17; y < 27; y++) {
+        const width = 21 - (y-5)*0.65;
 
-        const width = 14 - (y - 17) * 0.9;
+        for (let x=-Math.floor(width); x<=Math.floor(width); x++) {
 
-        for (let x = -Math.floor(width); x <= Math.floor(width); x++) {
+            const edge = Math.abs(x)>width-2;
 
-            const edge = Math.abs(x) > width - 1.5;
+            const char = edge
+                ? (x%2===0 ? "/" : "\\")
+                : ((x+y)%4===0 ? "#" :
+                   (x+y)%3===0 ? "=" : "-");
 
-            let char;
-            let color;
-
-            if (edge) {
-                char = x % 2 === 0 ? "\\" : "/";
-                color = COLORS.gold;
-            } else {
-                char = (x + y) % 3 === 0 ? "▒" : "░";
-                color = COLORS.light;
-            }
-
-            put(x, y, 1, char, color);
+            put(
+                grid,
+                x,
+                y,
+                8,
+                char,
+                edge ? "#e6bb56" :
+                (x+y)%2===0 ? "#f4e2bd" : "#d8c29e"
+            );
         }
     }
 
     // Ribbon
-    [
-        [-3, "("], [-2, " "], [-1, "<"],
-        [0, "◆"], [1, ">"], [2, " "], [3, ")"]
-    ].forEach(([x, char]) => {
-        put(x, 23, 3, char, COLORS.pink);
+    const ribbon = [
+        [-5,"("],[-4,"/"],[-3,"<"],
+        [-2," "],[-1,"@"],[0,"◆"],
+        [1,"@"],[2," "],[3,">"],
+        [4,"\\"],[5,")"]
+    ];
+
+    ribbon.forEach(([x,char]) => {
+        put(grid,x,19,12,char,"#ff69b4");
     });
 
-    for (let x = -2; x <= 2; x++) {
-        put(x, 24, 3, "═", COLORS.purple);
+    for (let x=-5; x<=5; x++) {
+        put(grid,x,20,12,"═", "#be64ff");
     }
 
-    // Stems below wrapping
-    [-2, 0, 2].forEach(x => {
-
-        for (let y = 25; y < 30; y++) {
-            put(x, y, 0, "│", COLORS.green);
+    // Stems beneath the wrapping
+    for (let x of [-3,0,3]) {
+        for (let y=25; y<34; y++) {
+            put(grid,x,y,1,"│",GREEN[3]);
         }
-    });
-
-    return canvasData;
+    }
 }
 
-function draw(angle) {
+function render() {
 
     ctx.fillStyle = "#08070c";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillRect(0,0,canvas.width,canvas.height);
 
-    const data = bouquet(angle);
+    const grid = createGrid();
+
+    drawBouquet(grid);
 
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
-    ctx.font = '16px "DejaVu Sans Mono", "Consolas", monospace';
+    ctx.font = 'bold 13px Consolas, "Courier New", monospace';
 
-    for (let y = 0; y < HEIGHT; y++) {
+    for (let y=0; y<H; y++) {
+        for (let x=0; x<W; x++) {
 
-        for (let x = 0; x < WIDTH; x++) {
+            const cell = grid.chars[y][x];
 
-            const cell = data[y][x];
+            if (!cell) continue;
 
-            if (cell) {
+            ctx.fillStyle = cell.color;
 
-                ctx.fillStyle = cell.color;
-
-                ctx.fillText(
-                    cell.char,
-                    x * CELL_W + CELL_W / 2,
-                    y * CELL_H + CELL_H / 2
-                );
-            }
+            ctx.fillText(
+                cell.char,
+                x*CW+CW/2,
+                y*CH+CH/2
+            );
         }
     }
 }
 
-// Continuous rotation
-let angle = 0;
-
 function animate() {
-
-    draw(angle);
-
-    angle = (angle + 5) % 360;
-
-    setTimeout(() => {
-        requestAnimationFrame(animate);
-    }, 80);
+    render();
+    angle = (angle+2.5)%360;
+    requestAnimationFrame(animate);
 }
 
 animate();
 
 </script>
-
 </body>
 </html>
