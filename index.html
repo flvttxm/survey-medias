@@ -1,0 +1,295 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<title>For Dila ♡</title>
+
+<style>
+* {
+    box-sizing: border-box;
+}
+
+body {
+    margin: 0;
+    min-height: 100vh;
+    background: #08070c;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    color: white;
+    font-family: Consolas, monospace;
+}
+
+.container {
+    width: 100%;
+    max-width: 950px;
+    text-align: center;
+    padding: 15px;
+}
+
+canvas {
+    width: 100%;
+    height: auto;
+    display: block;
+}
+
+.message {
+    margin-top: 15px;
+    color: #ff69b4;
+    font-size: clamp(18px, 4vw, 25px);
+    letter-spacing: 1px;
+}
+
+.subtitle {
+    margin-top: 12px;
+    color: #be64ff;
+    font-size: 14px;
+    letter-spacing: 2px;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+    <canvas id="bouquet" width="780" height="640"></canvas>
+
+    <div class="message">
+        Geçmiş olsun, Dila
+    </div>
+
+    <div class="subtitle">
+        made with love
+    </div>
+
+</div>
+
+<script>
+
+const WIDTH = 78;
+const HEIGHT = 32;
+
+const COLORS = {
+    pink: "#ff69b4",
+    purple: "#be64ff",
+    cyan: "#50dcdc",
+    coral: "#ff786e",
+    gold: "#ffcd5a",
+    green: "#64dc7d",
+    light: "#ffe1d2",
+    white: "#ffffff"
+};
+
+const FLOWERS = [
+    [-12, 7, "purple"],
+    [-8, 4, "pink"],
+    [-4, 8, "cyan"],
+    [0, 3, "coral"],
+    [4, 8, "gold"],
+    [8, 4, "purple"],
+    [12, 7, "pink"]
+];
+
+const canvas = document.getElementById("bouquet");
+const ctx = canvas.getContext("2d");
+
+const CELL_W = canvas.width / WIDTH;
+const CELL_H = canvas.height / HEIGHT;
+
+function bouquet(angle) {
+
+    const canvasData = Array.from(
+        { length: HEIGHT },
+        () => Array(WIDTH).fill(null)
+    );
+
+    const depthMap = Array.from(
+        { length: HEIGHT },
+        () => Array(WIDTH).fill(-999)
+    );
+
+    function put(x, y, z, char, color) {
+
+        const rad = angle * Math.PI / 180;
+
+        const rx = x * Math.cos(rad) + z * Math.sin(rad);
+        const rz = -x * Math.sin(rad) + z * Math.cos(rad);
+
+        const scale = 1 + rz * 0.012;
+
+        const sx = Math.floor(
+            WIDTH / 2 + rx * 1.25 * scale
+        );
+
+        const sy = Math.floor(y);
+
+        if (
+            sx >= 0 && sx < WIDTH &&
+            sy >= 0 && sy < HEIGHT
+        ) {
+            if (rz >= depthMap[sy][sx]) {
+
+                canvasData[sy][sx] = {
+                    char: char,
+                    color: color
+                };
+
+                depthMap[sy][sx] = rz;
+            }
+        }
+    }
+
+    // Decorative stars
+    [
+        [-24, 5], [23, 8], [-20, 15],
+        [21, 17], [-16, 24], [17, 25]
+    ].forEach(([x, y]) => {
+        put(x, y, -2, "·", COLORS.white);
+    });
+
+    // Stems and leaves
+    FLOWERS.forEach(([fx, fy]) => {
+
+        for (let y = fy + 2; y < 21; y++) {
+
+            const t = (y - fy) / (21 - fy);
+            const sx = fx * (1 - t);
+
+            put(sx, y, 0, "│", COLORS.green);
+
+            if ([fy + 5, fy + 8, fy + 11].includes(y)) {
+
+                const side = fx < 0 ? 1 : -1;
+
+                put(
+                    sx + side * 2,
+                    y,
+                    0,
+                    "❧",
+                    COLORS.green
+                );
+            }
+        }
+    });
+
+    // Seven flower heads
+    FLOWERS.forEach(([fx, fy, color]) => {
+
+        for (let i = 0; i < 8; i++) {
+
+            const a = i * Math.PI / 4;
+
+            const px = fx + Math.cos(a) * 1.7;
+            const py = fy + Math.sin(a) * 1.7;
+
+            put(px, py, 0, "✿", COLORS[color]);
+        }
+
+        put(fx, fy, 0.5, "✦", COLORS.gold);
+    });
+
+    // Bouquet wrapping
+    for (let y = 17; y < 27; y++) {
+
+        const width = 14 - (y - 17) * 0.9;
+
+        for (let x = -Math.floor(width); x <= Math.floor(width); x++) {
+
+            const edge = Math.abs(x) > width - 1.5;
+
+            let char;
+            let color;
+
+            if (edge) {
+                char = x % 2 === 0 ? "\\" : "/";
+                color = COLORS.gold;
+            } else {
+                char = (x + y) % 3 === 0 ? "▒" : "░";
+                color = COLORS.light;
+            }
+
+            put(x, y, 1, char, color);
+        }
+    }
+
+    // Ribbon
+    [
+        [-3, "("], [-2, " "], [-1, "<"],
+        [0, "◆"], [1, ">"], [2, " "], [3, ")"]
+    ].forEach(([x, char]) => {
+        put(x, 23, 3, char, COLORS.pink);
+    });
+
+    for (let x = -2; x <= 2; x++) {
+        put(x, 24, 3, "═", COLORS.purple);
+    }
+
+    // Stems below wrapping
+    [-2, 0, 2].forEach(x => {
+
+        for (let y = 25; y < 30; y++) {
+            put(x, y, 0, "│", COLORS.green);
+        }
+    });
+
+    return canvasData;
+}
+
+function draw(angle) {
+
+    ctx.fillStyle = "#08070c";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    const data = bouquet(angle);
+
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.font = '16px "DejaVu Sans Mono", "Consolas", monospace';
+
+    for (let y = 0; y < HEIGHT; y++) {
+
+        for (let x = 0; x < WIDTH; x++) {
+
+            const cell = data[y][x];
+
+            if (cell) {
+
+                ctx.fillStyle = cell.color;
+
+                ctx.fillText(
+                    cell.char,
+                    x * CELL_W + CELL_W / 2,
+                    y * CELL_H + CELL_H / 2
+                );
+            }
+        }
+    }
+}
+
+// Continuous rotation
+let angle = 0;
+
+function animate() {
+
+    draw(angle);
+
+    angle = (angle + 5) % 360;
+
+    setTimeout(() => {
+        requestAnimationFrame(animate);
+    }, 80);
+}
+
+animate();
+
+</script>
+
+</body>
+</html>
